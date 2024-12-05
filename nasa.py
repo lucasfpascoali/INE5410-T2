@@ -2,8 +2,8 @@ import sys
 import random
 import queue
 from time import sleep
-from typing import Tuple, List, Dict
-from threading import Thread, current_thread, Lock, Semaphore
+from typing import Tuple, List
+from threading import Thread, Lock, Semaphore
 
 
 def validar_entrada(entrada_bruta: List[int]) -> Tuple[int, int, int, int, int, int, int]:
@@ -41,7 +41,7 @@ def validar_entrada(entrada_bruta: List[int]) -> Tuple[int, int, int, int, int, 
     return n_atracoes, n_pessoas, n_vagas, tempo_permanecia, max_intervalo, semente, unidade_tempo
 
 def criar_atracoes(n_atracoes: int) -> List[str]:
-    return [f'AT-{i}' for i in range(n_atracoes)]
+    return [f'AT-{i}' for i in range(1, n_atracoes + 1)]
 
 def criar_pessoas(n_pessoas: int) -> List[Thread]:
     global atracoes
@@ -100,13 +100,18 @@ def rotina_pessoa(atracao: str, sem: Semaphore) -> None:
     with lock_qtd_pessoas_atracao:
         qtd_pessoas_atracao -= 1
         print(f"[Pessoa {priv_ordem} / {atracao}] Saiu da NASA Experiences (quantidade = {qtd_pessoas_atracao}).")
-        if qtd_pessoas_atracao == 0: sem_proxima_atracao.release()
-        with fila_sair.mutex:
-            fila_sair.get() # Pessoa sai da atração
-            if not fila_sair.empty():
-                proximo_a_sair_atracao = fila_sair.queue[0]
-                proximo_a_sair_atracao["semaforo"].release() # Libera o proximo da fila de saída para sair
-            sem_total_vagas.release()
+        if qtd_pessoas_atracao == 0: 
+            sem_proxima_atracao.release()
+        
+        fila_sair.get() # Pessoa sai da atração
+        if not fila_sair.empty():
+            proximo_a_sair_atracao = fila_sair.queue[0]
+            proximo_a_sair_atracao["semaforo"].release() # Libera o proximo da fila de saída para sair
+        sem_total_vagas.release()
+    
+    # Última pessoa da simulação, sinaliza que pode finalizar
+    if priv_ordem == n_pessoas:
+        sem_finalizar_simulacao.release()
         
 
 
@@ -138,6 +143,8 @@ def rotina_nasa():
         
         sem_proxima_pessoa.acquire() # Aguarda pessoa entrar na atração
 
+    sem_finalizar_simulacao.acquire()
+
     print("[NASA] Simulacao finalizada.")
         
             
@@ -167,6 +174,7 @@ if __name__ == '__main__':
     sem_proxima_pessoa = Semaphore(0)
     sem_total_vagas = Semaphore(n_vagas)
     sem_proxima_atracao = Semaphore(1)
+    sem_finalizar_simulacao = Semaphore(0)
 
     atracoes = criar_atracoes(n_atracoes)
 
