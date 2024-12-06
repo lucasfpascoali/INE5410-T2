@@ -84,7 +84,7 @@ def exibir_relatorio(tempo_total_simulacao: float):
         tempo_atracao_funcionando += tempo_fim_atracoes[i] - tempo_inicio_atracoes[i]
 
 
-    taxa_ocupacao = (tempo_atracao_funcionando / tempo_total_simulacao) * 1000
+    taxa_ocupacao = tempo_atracao_funcionando / tempo_total_simulacao
     print()
     print(f"Taxa de ocupacao: {taxa_ocupacao:.2f}")
 
@@ -107,7 +107,7 @@ def rotina_pessoa(atracao: str, sem: Semaphore) -> None:
         priv_ordem = ordem
         ordem += 1
         fila_entrar.put({'atracao': atracao, 'ordem': priv_ordem, 'semaforo': sem}) # Coloca pessoa na fila
-        print(f"[Pessoa {priv_ordem} / {atracao}] Aguardando na fila_entrar.")
+        print(f"[Pessoa {priv_ordem} / {atracao}] Aguardando na fila.")
         sem_pessoas_na_fila_entrar.release() # Sinaliza que tem pessoa na fila
 
     tempo_inicio_espera = time()
