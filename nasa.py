@@ -101,17 +101,17 @@ def rotina_gerador_pessoas() -> None:
     
 
 def rotina_pessoa(atracao: str, sem: Semaphore) -> None:
-    global fila_entrar, fila_sair, lock_estatisticas, lock_ordem, lock_qtd_pessoas_atracao, ordem, qtd_pessoas_atracao, qtd_pessoas_por_atracao, sem_pessoas_na_fila_entrar, sem_proxima_atracao, sem_total_vagas, tempos_espera_atracao, tempo_inicio_atracoes, tempo_permanecia,  unidade_tempo
+    global fila_principal, fila_interna, lock_estatisticas, lock_ordem, lock_qtd_pessoas_atracao, ordem, qtd_pessoas_atracao, qtd_pessoas_por_atracao, sem_pessoas_na_fila_principal, sem_proxima_atracao, sem_total_vagas, tempos_espera_atracao, tempo_inicio_atracoes, tempo_permanecia, unidade_tempo
 
     with lock_ordem:
         priv_ordem = ordem
         ordem += 1
-        fila_entrar.put({'atracao': atracao, 'ordem': priv_ordem, 'semaforo': sem}) # Coloca pessoa na fila
+        fila_principal.put({'atracao': atracao, 'ordem': priv_ordem, 'semaforo': sem}) # Coloca pessoa na fila
         print(f"[Pessoa {priv_ordem} / {atracao}] Aguardando na fila.")
-        sem_pessoas_na_fila_entrar.release() # Sinaliza que tem pessoa na fila
+        sem_pessoas_na_fila_principal.release() # Sinaliza que tem pessoa na fila
 
     tempo_inicio_espera = time()
-    # Pessoa aguarda a vez dela na fila_entrar
+    # Pessoa aguarda a vez dela na fila_principal
     sem.acquire()
 
     # Pessoa entra na atração
@@ -123,13 +123,13 @@ def rotina_pessoa(atracao: str, sem: Semaphore) -> None:
         qtd_pessoas_por_atracao[atracao] += 1
         tempos_espera_atracao[atracao] += time() - tempo_inicio_espera
 
-    fila_sair.put(fila_entrar.get()) # Pessoa sai da fila de entrada e entra na fila de saída
-    sem_proxima_pessoa.release() # Libera proxima pessoa da fila_entrar
+    fila_interna.put(fila_principal.get()) # Pessoa sai da fila de entrada e entra na fila de saída
+    sem_proxima_pessoa.release() # Libera proxima pessoa da fila_principal
 
     sleep(tempo_permanecia * unidade_tempo)
 
-    with fila_sair.mutex:
-        primeiro_a_sair_atracao = fila_sair.queue[0]
+    with fila_interna.mutex:
+        primeiro_a_sair_atracao = fila_interna.queue[0]
              
     if primeiro_a_sair_atracao["ordem"] != priv_ordem:
         sem.acquire() # Pessoa aguarda para sair
@@ -141,9 +141,9 @@ def rotina_pessoa(atracao: str, sem: Semaphore) -> None:
             tempo_fim_atracoes.append(time()) 
             sem_proxima_atracao.release()
         
-        fila_sair.get() # Pessoa sai da atração
-        if not fila_sair.empty():
-            proximo_a_sair_atracao = fila_sair.queue[0]
+        fila_interna.get() # Pessoa sai da atração
+        if not fila_interna.empty():
+            proximo_a_sair_atracao = fila_interna.queue[0]
             proximo_a_sair_atracao["semaforo"].release() # Libera o proximo da fila de saída para sair
         sem_total_vagas.release()
     
@@ -153,19 +153,19 @@ def rotina_pessoa(atracao: str, sem: Semaphore) -> None:
         
          
 def rotina_nasa():
-    global atracao_atual, fila_entrar, n_pessoas, sem_pessoas_na_fila_entrar, sem_proxima_pessoa, sem_total_vagas, tempo_inicio_atracoes
+    global atracao_atual, fila_principal, n_pessoas, sem_pessoas_na_fila_principal, sem_proxima_pessoa, sem_total_vagas, tempo_inicio_atracoes
 
     tempo_inicio_simulacao = time()
     print("[NASA] Simulacao iniciada.")
 
     for i in range(0, n_pessoas):
-        if atracao_atual != '' and qtd_pessoas_atracao == 0 and fila_entrar.empty():
+        if atracao_atual != '' and qtd_pessoas_atracao == 0 and fila_principal.empty():
             print(f"[NASA] Pausando a experiencia {atracao_atual}.")
 
-        sem_pessoas_na_fila_entrar.acquire() # Aguarda ter pessoas na fila
+        sem_pessoas_na_fila_principal.acquire() # Aguarda ter pessoas na fila
 
-        with fila_entrar.mutex:
-            pessoa = fila_entrar.queue[0]
+        with fila_principal.mutex:
+            pessoa = fila_principal.queue[0]
         
         # Atração da primeia pessoa da fila é diferente da atração atual
         if pessoa['atracao'] != atracao_atual:
@@ -199,8 +199,8 @@ if __name__ == '__main__':
     qtd_pessoas_por_atracao, tempos_espera_atracao = criar_dict_estatistica(atracoes)
     tempo_inicio_atracoes = []
     tempo_fim_atracoes = []
-    fila_entrar = queue.Queue(n_pessoas)
-    fila_sair = queue.Queue(n_pessoas)
+    fila_principal = queue.Queue(n_pessoas)
+    fila_interna = queue.Queue(n_pessoas) # Fila própria de cada atração
     ordem = 1
     atracao_atual = ''
     qtd_pessoas_atracao = 0
@@ -209,7 +209,7 @@ if __name__ == '__main__':
     lock_ordem = Lock()
     lock_qtd_pessoas_atracao = Lock()
     lock_estatisticas = Lock()
-    sem_pessoas_na_fila_entrar = Semaphore(0)
+    sem_pessoas_na_fila_principal = Semaphore(0)
     sem_proxima_pessoa = Semaphore(0)
     sem_total_vagas = Semaphore(n_vagas)
     sem_proxima_atracao = Semaphore(1)
