@@ -1,7 +1,7 @@
 import sys 
 import random
 import queue
-from time import sleep, time
+from time import sleep, time 
 from typing import Tuple, List, Dict
 from threading import Thread, Lock, Semaphore
 
@@ -92,7 +92,7 @@ def rotina_gerador_pessoas(max_intervalo: int, n_pessoas: int, tempo_permanencia
     pessoas = criar_pessoas(n_pessoas, tempo_permanencia, unidade_tempo, atracoes)
     for p in pessoas:
         p.start()
-        sleep(random.randint(0, max_intervalo * unidade_tempo))
+        sleep(random.randint(0, max_intervalo * unidade_tempo) / 1000)
 
     
     for p in pessoas: 
@@ -125,7 +125,7 @@ def rotina_pessoa(atracao: str, sem: Semaphore, tempo_permanencia: int, unidade_
     fila_interna.put(fila_principal.get()) # Pessoa sai da fila de entrada e entra na fila de saída
     sem_proxima_pessoa.release() # Libera proxima pessoa da fila_principal
 
-    sleep(tempo_permanencia * unidade_tempo)
+    sleep((tempo_permanencia * unidade_tempo) / 1000)
 
     with fila_interna.mutex:
         primeiro_a_sair_atracao = fila_interna.queue[0]
@@ -213,7 +213,7 @@ if __name__ == '__main__':
     sem_proxima_atracao = Semaphore(1)
     sem_finalizar_simulacao = Semaphore(0)
 
-
+    # Threads
     nasa = Thread(target=rotina_nasa, args=(n_pessoas,))
     gerador_pessoas = Thread(target=rotina_gerador_pessoas, args=(max_intervalo, n_pessoas, tempo_permanencia, unidade_tempo, atracoes))
 
