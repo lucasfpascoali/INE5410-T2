@@ -22,8 +22,8 @@ def validar_entrada(entrada_bruta: List[int]) -> Tuple[int, int, int, int, int, 
     if n_vagas <= 0:
         raise ValueError("O número de vagas deve ser maior do que 0")
 
-    tempo_permanecia = entrada_bruta[3]
-    if tempo_permanecia <= 0:
+    tempo_permanencia = entrada_bruta[3]
+    if tempo_permanencia <= 0:
         raise ValueError("O tempo de permanência deve ser maior do que 0")
 
     max_intervalo = entrada_bruta[4]
@@ -38,7 +38,7 @@ def validar_entrada(entrada_bruta: List[int]) -> Tuple[int, int, int, int, int, 
     if unidade_tempo <= 0:
         raise ValueError("A quantidade unitária de tempo deve ser maior do que 0")
 
-    return n_atracoes, n_pessoas, n_vagas, tempo_permanecia, max_intervalo, semente, unidade_tempo
+    return n_atracoes, n_pessoas, n_vagas, tempo_permanencia, max_intervalo, semente, unidade_tempo
 
 
 def criar_atracoes(n_atracoes: int) -> List[str]:
@@ -55,23 +55,22 @@ def criar_dict_estatistica(atracoes: List[str]) -> Tuple[Dict[str, int], Dict[st
     return qtd, tempos
 
 
-def criar_pessoas(n_pessoas: int) -> List[Thread]:
-    global atracoes
-    pessoas = []
-    for i in range(n_pessoas):
-        pessoas.append(Thread(
-            target=rotina_pessoa, 
-            args=(
-                atracoes[random.randint(0,n_atracoes-1)],
-                Semaphore(0)
-            )
-        ))
+def criar_pessoas(n_pessoas: int, tempo_permanencia: int, unidade_tempo: int, atracoes: List[str]) -> List[Thread]:
+    return [
+            Thread(
+                target=rotina_pessoa, 
+                args=(
+                    atracoes[random.randint(0, n_atracoes-1)], 
+                    Semaphore(0),
+                    tempo_permanencia,
+                    unidade_tempo
+                )
+            ) for _ in range(n_pessoas)
+        ]
 
-    return pessoas
 
-
-def exibir_relatorio(tempo_total_simulacao: float):
-    global qtd_pessoas_por_atracao, tempos_espera_atracao, tempo_fim_atracoes,tempo_inicio_atracoes
+def exibir_relatorio(tempo_total_simulacao: float) -> None:
+    global qtd_pessoas_por_atracao, tempos_espera_atracao, tempo_fim_atracoes, tempo_inicio_atracoes
 
     print()
     print("Tempo medio de espera:")
@@ -89,19 +88,19 @@ def exibir_relatorio(tempo_total_simulacao: float):
     print(f"Taxa de ocupacao: {taxa_ocupacao:.2f}")
 
     
-def rotina_gerador_pessoas() -> None:
-    global max_intervalo, n_pessoas
-    pessoas = criar_pessoas(n_pessoas)
+def rotina_gerador_pessoas(max_intervalo: int, n_pessoas: int, tempo_permanencia: int, unidade_tempo: int, atracoes: List[str]) -> None:
+    pessoas = criar_pessoas(n_pessoas, tempo_permanencia, unidade_tempo, atracoes)
     for p in pessoas:
-        sleep(random.randint(0, max_intervalo))
         p.start()
+        sleep(random.randint(0, max_intervalo * unidade_tempo))
+
     
     for p in pessoas: 
         p.join()
     
 
-def rotina_pessoa(atracao: str, sem: Semaphore) -> None:
-    global fila_principal, fila_interna, lock_estatisticas, lock_ordem, lock_qtd_pessoas_atracao, ordem, qtd_pessoas_atracao, qtd_pessoas_por_atracao, sem_pessoas_na_fila_principal, sem_proxima_atracao, sem_total_vagas, tempos_espera_atracao, tempo_inicio_atracoes, tempo_permanecia, unidade_tempo
+def rotina_pessoa(atracao: str, sem: Semaphore, tempo_permanencia: int, unidade_tempo: int) -> None:
+    global fila_principal, fila_interna, lock_estatisticas, lock_ordem, lock_qtd_pessoas_atracao, ordem, qtd_pessoas_atracao, qtd_pessoas_por_atracao, sem_pessoas_na_fila_principal, sem_proxima_atracao, sem_total_vagas, tempos_espera_atracao, tempo_inicio_atracoes
 
     with lock_ordem:
         priv_ordem = ordem
@@ -110,8 +109,8 @@ def rotina_pessoa(atracao: str, sem: Semaphore) -> None:
         print(f"[Pessoa {priv_ordem} / {atracao}] Aguardando na fila.")
         sem_pessoas_na_fila_principal.release() # Sinaliza que tem pessoa na fila
 
-    tempo_inicio_espera = time()
     # Pessoa aguarda a vez dela na fila_principal
+    tempo_inicio_espera = time()
     sem.acquire()
 
     # Pessoa entra na atração
@@ -126,7 +125,7 @@ def rotina_pessoa(atracao: str, sem: Semaphore) -> None:
     fila_interna.put(fila_principal.get()) # Pessoa sai da fila de entrada e entra na fila de saída
     sem_proxima_pessoa.release() # Libera proxima pessoa da fila_principal
 
-    sleep(tempo_permanecia * unidade_tempo)
+    sleep(tempo_permanencia * unidade_tempo)
 
     with fila_interna.mutex:
         primeiro_a_sair_atracao = fila_interna.queue[0]
@@ -138,7 +137,9 @@ def rotina_pessoa(atracao: str, sem: Semaphore) -> None:
         qtd_pessoas_atracao -= 1
         print(f"[Pessoa {priv_ordem} / {atracao}] Saiu da NASA Experiences (quantidade = {qtd_pessoas_atracao}).")
         if qtd_pessoas_atracao == 0:
-            tempo_fim_atracoes.append(time()) 
+            tempo_fim_atracoes.append(time())
+            if fila_principal.empty():
+                print(f"[NASA] Pausando a experiencia {atracao_atual}.")
             sem_proxima_atracao.release()
         
         fila_interna.get() # Pessoa sai da atração
@@ -152,16 +153,13 @@ def rotina_pessoa(atracao: str, sem: Semaphore) -> None:
         sem_finalizar_simulacao.release()
         
          
-def rotina_nasa():
-    global atracao_atual, fila_principal, n_pessoas, sem_pessoas_na_fila_principal, sem_proxima_pessoa, sem_total_vagas, tempo_inicio_atracoes
+def rotina_nasa(n_pessoas: int):
+    global atracao_atual, fila_principal, sem_pessoas_na_fila_principal, sem_proxima_pessoa, sem_total_vagas, tempo_inicio_atracoes
 
     tempo_inicio_simulacao = time()
     print("[NASA] Simulacao iniciada.")
 
-    for i in range(0, n_pessoas):
-        if atracao_atual != '' and qtd_pessoas_atracao == 0 and fila_principal.empty():
-            print(f"[NASA] Pausando a experiencia {atracao_atual}.")
-
+    for _ in range(0, n_pessoas):
         sem_pessoas_na_fila_principal.acquire() # Aguarda ter pessoas na fila
 
         with fila_principal.mutex:
@@ -189,7 +187,7 @@ def rotina_nasa():
 if __name__ == '__main__':
     entrada_bruta = [int(arg) for arg in sys.argv[1:]]
 
-    n_atracoes, n_pessoas, n_vagas, tempo_permanecia, max_intervalo, semente, unidade_tempo = validar_entrada(entrada_bruta)
+    n_atracoes, n_pessoas, n_vagas, tempo_permanencia, max_intervalo, semente, unidade_tempo = validar_entrada(entrada_bruta)
 
     # Configurando a semente
     random.seed(semente)
@@ -216,8 +214,8 @@ if __name__ == '__main__':
     sem_finalizar_simulacao = Semaphore(0)
 
 
-    nasa = Thread(target=rotina_nasa)
-    gerador_pessoas = Thread(target=rotina_gerador_pessoas)
+    nasa = Thread(target=rotina_nasa, args=(n_pessoas,))
+    gerador_pessoas = Thread(target=rotina_gerador_pessoas, args=(max_intervalo, n_pessoas, tempo_permanencia, unidade_tempo, atracoes))
 
     nasa.start()
     gerador_pessoas.start()
