@@ -82,7 +82,6 @@ def exibir_relatorio(tempo_total_simulacao: float) -> None:
     for i in range(len(tempo_inicio_atracoes)):
         tempo_atracao_funcionando += tempo_fim_atracoes[i] - tempo_inicio_atracoes[i]
 
-
     taxa_ocupacao = tempo_atracao_funcionando / tempo_total_simulacao
     print()
     print(f"Taxa de ocupacao: {taxa_ocupacao:.2f}")
@@ -100,7 +99,7 @@ def rotina_gerador_pessoas(max_intervalo: int, n_pessoas: int, tempo_permanencia
     
 
 def rotina_pessoa(atracao: str, sem: Semaphore, tempo_permanencia: int, unidade_tempo: int) -> None:
-    global fila_principal, fila_interna, lock_estatisticas, lock_ordem, lock_qtd_pessoas_atracao, ordem, qtd_pessoas_atracao, qtd_pessoas_por_atracao, sem_pessoas_na_fila_principal, sem_proxima_atracao, sem_total_vagas, tempos_espera_atracao, tempo_inicio_atracoes
+    global atracao_atual, fila_principal, fila_interna, lock_estatisticas, lock_ordem, lock_qtd_pessoas_atracao, ordem, qtd_pessoas_atracao, qtd_pessoas_por_atracao, sem_pessoas_na_fila_principal, sem_proxima_atracao, sem_total_vagas, tempos_espera_atracao, tempo_inicio_atracoes
 
     with lock_ordem:
         priv_ordem = ordem
@@ -140,6 +139,7 @@ def rotina_pessoa(atracao: str, sem: Semaphore, tempo_permanencia: int, unidade_
             tempo_fim_atracoes.append(time())
             if fila_principal.empty():
                 print(f"[NASA] Pausando a experiencia {atracao_atual}.")
+                atracao_atual = ''
             sem_proxima_atracao.release()
         
         fila_interna.get() # Pessoa sai da atração
@@ -153,7 +153,7 @@ def rotina_pessoa(atracao: str, sem: Semaphore, tempo_permanencia: int, unidade_
         sem_finalizar_simulacao.release()
         
          
-def rotina_nasa(n_pessoas: int):
+def rotina_nasa(n_pessoas: int) -> None:
     global atracao_atual, fila_principal, sem_pessoas_na_fila_principal, sem_proxima_pessoa, sem_total_vagas, tempo_inicio_atracoes
 
     tempo_inicio_simulacao = time()
