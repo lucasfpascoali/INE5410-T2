@@ -75,7 +75,10 @@ def exibir_relatorio(tempo_total_simulacao: float) -> None:
     print()
     print("Tempo medio de espera:")
     for atracao, valor in tempos_espera_atracao.items():
-        tempo = (valor * 1000) / qtd_pessoas_por_atracao[atracao]
+        if qtd_pessoas_por_atracao[atracao] == 0:
+            tempo = 0
+        else:
+            tempo = (valor * 1000) / qtd_pessoas_por_atracao[atracao]
         print(f"Experiencia {atracao}: {tempo:.2f}")
     
     tempo_atracao_funcionando = 0
